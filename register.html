@@ -1,0 +1,12 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Create account · Agro POS</title><link rel="stylesheet" href="assets/css/auth.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script></head><body>
+<div class="side"><h1>Agro POS</h1><p>Fast billing, accurate stock and clear accounts for your seed, fertilizer and farm-supply shop.</p></div>
+<main><form id="registerForm" novalidate><h2>Create your shop account</h2><div id="msg"></div>
+<label for="company">Shop name</label><input id="company" autocomplete="organization">
+<label for="owner">Owner name</label><input id="owner" autocomplete="name">
+<label for="email">Email</label><input id="email" type="email" autocomplete="email">
+<label for="mobile">Mobile number</label><input id="mobile" type="tel" autocomplete="tel">
+<label for="password">Password</label><input id="password" type="password" autocomplete="new-password">
+<label for="confirm">Confirm password</label><input id="confirm" type="password" autocomplete="new-password">
+<button id="btn" data-label="Create account" style="margin-top:16px">Create account</button><p class="alt">Already registered? <a href="login.html">Sign in</a></p></form></main><script src="assets/js/auth.js"></script></body></html>
