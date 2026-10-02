@@ -39,7 +39,7 @@ dialog{border:0;border-radius:16px;padding:22px;width:min(560px,94vw);box-shadow
 <div id="toast"></div>
 <script>
 // Same Supabase project + same session storage rule as Phase 1 (assets/js/auth.js).
-const SB_URL='https://mavbmnkyiyjbacftbkvj.supabase.co',SB_KEY='sb_publishable_NfCdSavarg5HYEotRuYriA_rf3YGVl3';
+const SB_URL='https://chmdgjkjishquxefimka.supabase.co',SB_KEY='sb_publishable_zZhoAtqLa9RPR59ydtm9mw_liZO9rus';
 const store=localStorage.getItem('agro_remember')==='0'?sessionStorage:localStorage;
 const sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,storage:store,lock:async(name,timeout,fn)=>await fn()}});
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
