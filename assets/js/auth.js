@@ -1,6 +1,6 @@
 // Single auth module for login.html and register.html.
-const SUPABASE_URL = 'https://mavbmnkyiyjbacftbkvj.supabase.co';        // Project Settings → API
-const SUPABASE_ANON_KEY = 'sb_publishable_NfCdSavarg5HYEotRuYriA_rf3YGVl3'; // anon/publishable key only — never the service-role key
+const SUPABASE_URL = 'https://chmdgjkjishquxefimka.supabase.co';        // Project Settings → API
+const SUPABASE_ANON_KEY = 'sb_publishable_zZhoAtqLa9RPR59ydtm9mw_liZO9rus'; // anon/publishable key only — never the service-role key
 const DASHBOARD_URL = 'dashboard.html';
 const $ = id => document.getElementById(id);
 
