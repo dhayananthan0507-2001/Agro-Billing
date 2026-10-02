@@ -7,7 +7,7 @@ const $ = id => document.getElementById(id);
 function makeClient() {
   // "Remember me" decides whether the session survives closing the browser.
   const store = localStorage.getItem('agro_remember') === '0' ? sessionStorage : localStorage;
-  return supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, storage: store } });
+  return supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, storage: store, lock: async (name, timeout, fn) => await fn() } });
 }
 let sb = null; // created once, on first use, so only one Supabase client ever exists on the page
 const client = () => sb || (sb = makeClient());
