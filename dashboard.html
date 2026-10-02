@@ -1,0 +1,111 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard · Agro POS</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+:root{--leaf:#1f4d2b;--moss:#3f7d3a;--soil:#5a3e2b;--wheat:#efe3bd;--paper:#fbf8ef;--err:#a32020;--warn:#b86e00}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif;color:#22301f;background:var(--paper);display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+nav{background:var(--leaf);color:var(--wheat);padding:20px 14px}nav h1{font:700 1.3rem Georgia,serif;margin:0 0 20px}nav a{display:block;padding:9px 12px;border-radius:8px;color:inherit;text-decoration:none}nav a.on,nav a:hover{background:#ffffff22}
+main{padding:24px;min-width:0}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}h2{font:700 1.5rem Georgia,serif;color:var(--leaf);margin:0}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0}.card{background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 8px #0001;transition:transform .15s}.card:hover{transform:translateY(-2px)}
+.card small{color:#6b7a63}.card b{display:block;font-size:1.8rem;color:var(--leaf)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}input,select,textarea{padding:10px;border:1px solid #b9b394;border-radius:8px;font:inherit;background:#fff;width:100%}.bar input{flex:1;min-width:200px;width:auto}.bar select{width:auto}
+button{padding:10px 16px;border:0;border-radius:8px;background:var(--leaf);color:#fff;font:600 .95rem system-ui;cursor:pointer}button.ghost{background:#e8e2c8;color:var(--leaf)}button:disabled{opacity:.6}
+.tw{background:#fff;border-radius:14px;box-shadow:0 2px 8px #0001;overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{padding:11px 12px;text-align:left;border-bottom:1px solid #eee;white-space:nowrap}th{font-size:.8rem;color:#6b7a63;text-transform:uppercase}tr:hover td{background:#faf7ec}
+.b{padding:2px 10px;border-radius:99px;font-size:.8rem;font-weight:600}.in{background:#e3f2dd;color:var(--leaf)}.low{background:#fff0d6;color:var(--warn)}.out{background:#fbe4e4;color:var(--err)}.arc{background:#eee;color:#666}
+.sk{height:14px;border-radius:6px;background:linear-gradient(90deg,#eee,#f7f7f7,#eee);background-size:200%;animation:s 1.2s infinite}@keyframes s{to{background-position:-200%}}
+dialog{border:0;border-radius:16px;padding:22px;width:min(560px,94vw);box-shadow:0 10px 40px #0004}dialog::backdrop{background:#0006}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:10px}.g label{font-weight:600;font-size:.85rem}.g .f{grid-column:1/-1}
+#toast{position:fixed;right:18px;bottom:18px;padding:12px 16px;border-radius:10px;color:#fff;display:none;z-index:9}.pg{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px}
+@media(max-width:760px){body{grid-template-columns:1fr}nav{display:flex;gap:10px;align-items:center;padding:10px}nav h1{margin:0}}
+</style></head><body>
+<nav><h1>Agro POS</h1><a class="on" href="#">Products</a><a href="#" id="out">Sign out</a></nav>
+<main>
+<div class="top"><div><h2>Products</h2><small id="who"></small></div><button id="add" hidden>+ Add product</button></div>
+<div class="cards" id="cards"></div>
+<div class="bar"><input id="q" placeholder="Search name, code, SKU, barcode, brand…"><select id="fc"><option value="">All categories</option></select><select id="fs"><option value="">Active</option><option value="0">Archived</option></select></div>
+<div class="tw"><table><thead><tr><th>Product</th><th>Code / SKU</th><th>Category</th><th>Brand</th><th>Unit</th><th>Cost</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="pg"><button class="ghost" id="prev">‹</button><span id="pn"></span><button class="ghost" id="next">›</button></div>
+</main>
+<dialog id="dlg"><h2>Add product</h2><form id="f" class="g" novalidate>
+<div class="f"><label>Product name *</label><input name="product_name"></div>
+<div><label>Code</label><input name="product_code"></div><div><label>SKU</label><input name="sku"></div>
+<div><label>Barcode</label><input name="barcode"></div><div><label>Brand</label><input name="brand"></div>
+<div><label>Category *</label><select name="category_id" id="cat"></select></div>
+<div><label>Unit *</label><select name="unit"><option>Piece</option><option>Packet</option><option>Box</option><option>Kg</option><option>Gram</option><option>Ton</option><option>Litre</option><option>ML</option><option>Bag</option><option>Bottle</option></select></div>
+<div><label>Purchase price</label><input name="purchase_price" type="number" min="0" step="0.01"></div><div><label>Selling price</label><input name="selling_price" type="number" min="0" step="0.01"></div>
+<div><label>MRP</label><input name="mrp" type="number" min="0" step="0.01"></div><div><label>GST %</label><input name="tax_rate" type="number" min="0" step="0.01"></div>
+<div><label>Minimum stock</label><input name="minimum_stock" type="number" min="0" step="any"></div><div><label>Opening stock</label><input name="opening_stock" type="number" min="0" step="any"></div>
+<div class="f" style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="ghost" id="cancel">Cancel</button><button id="save">Save product</button></div></form></dialog>
+<div id="toast"></div>
+<script>
+// Same Supabase project + same session storage rule as Phase 1 (assets/js/auth.js).
+const SB_URL='https://mavbmnkyiyjbacftbkvj.supabase.co',SB_KEY='sb_publishable_NfCdSavarg5HYEotRuYriA_rf3YGVl3';
+const store=localStorage.getItem('agro_remember')==='0'?sessionStorage:localStorage;
+const sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,storage:store}});
+const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const PAGE=25;let cid,role,page=0,total=0,timer;
+const toast=(t,ok=true)=>{const e=$('toast');e.textContent=t;e.style.background=ok?'#1f4d2b':'#a32020';e.style.display='block';setTimeout(()=>e.style.display='none',3500)};
+const MSG={NOT_ALLOWED:'You do not have permission for this action.',INVALID_QUANTITY:'Enter a valid quantity.',INSUFFICIENT_STOCK:'Not enough stock.'};
+const friendly=e=>{const m=(e?.message||'')+(e?.details||'');if(MSG[e?.message])return MSG[e.message];
+  if(/products_company_sku_uq/.test(m))return 'This SKU already exists.';if(/products_company_barcode_uq/.test(m))return 'This barcode already exists.';
+  if(/products_company_code_uq/.test(m))return 'This product code already exists.';if(/JWT|expired/i.test(m))return 'Session expired. Please sign in again.';
+  if(/Failed to fetch|network/i.test(m))return 'Network problem. Check your connection.';return 'Something went wrong. Please try again.'};
+const canWrite=()=>['owner','manager'].includes(role);
+const fmt=n=>'₹'+Number(n).toLocaleString('en-IN');
+
+async function init(){
+  const{data:{session}}=await sb.auth.getSession();if(!session)return location.replace('login.html');
+  const{data:m,error}=await sb.from('company_members').select('company_id,role,companies(name)').eq('user_id',session.user.id).limit(1);
+  if(error||!m.length)return location.replace('login.html');
+  cid=m[0].company_id;role=m[0].role;$('who').textContent=m[0].companies.name+' · '+role;$('add').hidden=!canWrite();
+  await loadCats();stats();load();
+}
+async function loadCats(){
+  let{data}=await sb.from('categories').select('id,name').eq('company_id',cid).eq('status','active').order('name');
+  if(!data.length&&canWrite()){
+    const names=['Seeds','Fertilizers','Pesticides','Fungicides','Herbicides','Organic Products','Bio Products','Farm Tools','Irrigation','Agricultural Equipment','Animal Feed','Other'];
+    await sb.from('categories').insert(names.map(name=>({company_id:cid,name})));
+    ({data}=await sb.from('categories').select('id,name').eq('company_id',cid).eq('status','active').order('name'));
+  }
+  const o=data.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  $('cat').innerHTML=o;$('fc').innerHTML='<option value="">All categories</option>'+o;
+}
+async function stats(){
+  const{data,error}=await sb.rpc('dashboard_stats',{p_company:cid});if(error)return toast(friendly(error),false);
+  const c=[['Products',data.products],['Categories',data.categories],['Low stock',data.low_stock],['Out of stock',data.out_of_stock],['Expiring batches',data.expiring],['Stock value',fmt(data.stock_value)]];
+  $('cards').innerHTML=c.map(([k,v])=>`<div class="card"><small>${k}</small><b>${esc(v)}</b></div>`).join('');
+}
+async function load(){
+  $('rows').innerHTML='<tr><td colspan="10"><div class="sk"></div></td></tr>'.repeat(4);
+  let q=sb.from('products').select('id,product_name,product_code,sku,brand,unit,purchase_price,selling_price,minimum_stock,is_active,categories(name),inventory(quantity)',{count:'exact'})
+    .eq('company_id',cid).eq('is_active',$('fs').value!=='0');
+  if($('fc').value)q=q.eq('category_id',$('fc').value);
+  const s=$('q').value.trim().replace(/[,()%]/g,' ');
+  if(s)q=q.or(['product_name','product_code','sku','barcode','brand'].map(f=>`${f}.ilike.%${s}%`).join(','));
+  const{data,count,error}=await q.order('product_name').range(page*PAGE,page*PAGE+PAGE-1);
+  if(error){$('rows').innerHTML='';return toast(friendly(error),false)}
+  total=count;$('pn').textContent=total?`${page*PAGE+1}–${Math.min(total,(page+1)*PAGE)} of ${total}`:'0';
+  $('prev').disabled=page===0;$('next').disabled=(page+1)*PAGE>=total;
+  $('rows').innerHTML=data.length?data.map(p=>{
+    const qty=Number(p.inventory?.[0]?.quantity??p.inventory?.quantity??0);
+    const st=!p.is_active?['arc','Archived']:qty===0?['out','Out of stock']:qty<=p.minimum_stock?['low','Low stock']:['in','In stock'];
+    return `<tr><td><b>${esc(p.product_name)}</b></td><td>${esc(p.product_code||'')} ${p.sku?'/ '+esc(p.sku):''}</td><td>${esc(p.categories?.name)}</td><td>${esc(p.brand||'')}</td><td>${esc(p.unit)}</td><td>${fmt(p.purchase_price)}</td><td>${fmt(p.selling_price)}</td><td>${qty} ${esc(p.unit)}</td><td><span class="b ${st[0]}">${st[1]}</span></td>
+    <td>${canWrite()?`<button class="ghost" data-a="${p.id}" data-on="${p.is_active}">${p.is_active?'Archive':'Restore'}</button>`:''}</td></tr>`}).join(''):'<tr><td colspan="10">No products found.</td></tr>';
+}
+$('q').oninput=()=>{clearTimeout(timer);timer=setTimeout(()=>{page=0;load()},300)};
+$('fc').onchange=$('fs').onchange=()=>{page=0;load()};
+$('prev').onclick=()=>{page--;load()};$('next').onclick=()=>{page++;load()};
+$('rows').onclick=async e=>{const id=e.target.dataset.a;if(!id)return;
+  const{error}=await sb.from('products').update({is_active:e.target.dataset.on!=='true'}).eq('id',id).eq('company_id',cid);
+  if(error)return toast(friendly(error),false);toast('Updated');stats();load()};
+$('add').onclick=()=>{$('f').reset();$('dlg').showModal()};$('cancel').onclick=()=>$('dlg').close();
+$('f').onsubmit=async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));
+  if(!f.product_name.trim())return toast('Product name is required.',false);
+  for(const k of['purchase_price','selling_price','mrp','tax_rate','minimum_stock','opening_stock'])if(f[k]!==''&&Number(f[k])<0)return toast('Values cannot be negative.',false);
+  $('save').disabled=true;
+  const{error}=await sb.rpc('create_product',{p:{...f,company_id:cid}});$('save').disabled=false;
+  if(error)return toast(friendly(error),false);
+  $('dlg').close();toast('✓ Product created successfully');stats();load()};
+$('out').onclick=async e=>{e.preventDefault();await sb.auth.signOut();location.replace('login.html')};
+init().catch(e=>{console.error(e);toast(friendly(e),false)});
+</script></body></html>
