@@ -1,0 +1,30 @@
+:root{--leaf:#1f4d2b;--moss:#3f7d3a;--soil:#5a3e2b;--wheat:#efe3bd;--paper:#fbf8ef;--err:#a32020;--warn:#b86e00}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif;color:#22301f;background:var(--paper);display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+nav{background:var(--leaf);color:var(--wheat);padding:20px 14px}nav h1{font:700 1.3rem Georgia,serif;margin:0 0 20px}nav a{display:block;padding:9px 12px;border-radius:8px;color:inherit;text-decoration:none}nav a.on,nav a:hover{background:#ffffff22}
+main{padding:24px;min-width:0}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}h2{font:700 1.5rem Georgia,serif;color:var(--leaf);margin:0}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0}.card{background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 8px #0001;transition:transform .15s}.card:hover{transform:translateY(-2px)}
+.card small{color:#6b7a63}.card b{display:block;font-size:1.8rem;color:var(--leaf)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}input,select,textarea{padding:10px;border:1px solid #b9b394;border-radius:8px;font:inherit;background:#fff;width:100%}.bar input{flex:1;min-width:200px;width:auto}.bar select{width:auto}
+button{padding:10px 16px;border:0;border-radius:8px;background:var(--leaf);color:#fff;font:600 .95rem system-ui;cursor:pointer}button.ghost{background:#e8e2c8;color:var(--leaf)}button:disabled{opacity:.6}
+.tw{background:#fff;border-radius:14px;box-shadow:0 2px 8px #0001;overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{padding:11px 12px;text-align:left;border-bottom:1px solid #eee;white-space:nowrap}th{font-size:.8rem;color:#6b7a63;text-transform:uppercase}tr:hover td{background:#faf7ec}
+.b{padding:2px 10px;border-radius:99px;font-size:.8rem;font-weight:600}.in{background:#e3f2dd;color:var(--leaf)}.low{background:#fff0d6;color:var(--warn)}.out{background:#fbe4e4;color:var(--err)}.arc{background:#eee;color:#666}
+.sk{height:14px;border-radius:6px;background:linear-gradient(90deg,#eee,#f7f7f7,#eee);background-size:200%;animation:s 1.2s infinite}@keyframes s{to{background-position:-200%}}
+dialog{border:0;border-radius:16px;padding:22px;width:min(560px,94vw);box-shadow:0 10px 40px #0004}dialog::backdrop{background:#0006}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:10px}.g label{font-weight:600;font-size:.85rem}.g .f{grid-column:1/-1}
+#toast{position:fixed;right:18px;bottom:18px;padding:12px 16px;border-radius:10px;color:#fff;display:none;z-index:9}.pg{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px}
+@media(max-width:760px){body{grid-template-columns:1fr}nav{display:flex;gap:10px;align-items:center;padding:10px}nav h1{margin:0}}
+
+/* ---- Phase 3 additions (Customers / Suppliers pages) ---- */
+nav a.on{background:#ffffff22}
+.sub{margin:2px 0 0;color:#6b7a63}
+.bl{margin-left:6px;font-size:.75rem;font-weight:600;padding:1px 8px;border-radius:99px;background:#eee;color:#555}.bl.owe{background:#fff0d6;color:var(--warn)}
+.sub2{display:block;color:#6b7a63;font-size:.8rem}
+.st{padding:44px 16px;text-align:center;background:#fff;border-radius:14px;box-shadow:0 2px 8px #0001}.st h3{font:700 1.2rem Georgia,serif;color:var(--leaf);margin:0 0 6px}.st p{margin:0 0 14px;color:#6b7a63}
+.fe{display:block;color:var(--err);font-size:.8rem}
+input.bad,select.bad,textarea.bad{border-color:var(--err);outline-color:var(--err)}
+.acts{display:flex;gap:6px}.acts button{padding:6px 10px;font-size:.85rem}button.danger{background:var(--err)}
+.dl{display:grid;grid-template-columns:150px 1fr;gap:8px 14px;margin:14px 0}.dl dt{color:#6b7a63;font-weight:600}.dl dd{margin:0;word-break:break-word}
+dialog{max-height:92vh;overflow:auto}textarea{resize:vertical;min-height:70px}
+.acts-row{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+@media(max-width:760px){nav{flex-wrap:wrap}}
+@media(max-width:600px){.g{grid-template-columns:1fr}.dl{grid-template-columns:1fr;gap:2px}.dl dd{margin-bottom:8px}main{padding:16px}}
