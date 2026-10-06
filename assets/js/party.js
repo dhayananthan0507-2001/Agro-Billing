@@ -7,6 +7,7 @@ const db = client();
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = n => '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const STATES = ['Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chandigarh', 'Chhattisgarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jammu and Kashmir', 'Jharkhand', 'Karnataka', 'Kerala', 'Ladakh', 'Lakshadweep', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Puducherry', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal'];
+const NCOL = C.showOutstanding ? 8 : 7;
 const COLS = `id,${NAME},phone,email,address,city,state,pincode,gst_number,opening_balance,balance_type,notes,is_active,created_at`;
 
 let cid, role, page = 0, total = 0, timer, reqId = 0, rows = [], editing = null, pendingDeactivate = null;
@@ -21,7 +22,7 @@ function shell() {
   <div class="top"><div><h2>${C.plural}</h2><p class="sub">${esc(C.description)}</p><small id="who"></small></div><button id="add" hidden>+ Add ${C.singular}</button></div>
   <div class="bar" style="margin-top:16px"><input id="q" type="search" placeholder="Search by name, phone or GST number…" aria-label="Search ${p}" autocomplete="off">
     <select id="fs" aria-label="Status filter"><option value="1">Active</option><option value="0">Inactive</option><option value="">All</option></select></div>
-  <div class="tw" id="tw"><table><thead><tr><th>${C.singular}</th><th>Phone</th><th>GST</th><th>Location</th><th>Opening balance</th><th>Status</th><th>Actions</th></tr></thead><tbody id="rows"></tbody></table></div>
+  <div class="tw" id="tw"><table><thead><tr><th>${C.singular}</th><th>Phone</th><th>GST</th><th>Location</th><th>Opening balance</th>${C.showOutstanding ? '<th>Outstanding</th>' : ''}<th>Status</th><th>Actions</th></tr></thead><tbody id="rows"></tbody></table></div>
   <div id="state"></div>
   <div class="pg"><button class="ghost" id="prev" aria-label="Previous page">‹</button><span id="pn"></span><button class="ghost" id="next" aria-label="Next page">›</button></div>
 
@@ -69,7 +70,7 @@ function setState(html) { $('state').innerHTML = html; $('tw').hidden = !!html; 
 async function load() {
   const my = ++reqId; // ignore out-of-order responses
   $('state').innerHTML = ''; $('tw').hidden = false;
-  $('rows').innerHTML = '<tr><td colspan="7"><div class="sk"></div></td></tr>'.repeat(4);
+  $('rows').innerHTML = `<tr><td colspan="${NCOL}"><div class="sk"></div></td></tr>`.repeat(4);
   let q = db.from(T).select(COLS, { count: 'exact' }).eq('company_id', cid);
   const st = $('fs').value; if (st !== '') q = q.eq('is_active', st === '1');
   const s = $('q').value.trim().replace(/[,()%\\*"]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -94,10 +95,22 @@ async function load() {
   $('rows').innerHTML = data.map(r => {
     const bal = Number(r.opening_balance) > 0 ? `${money(r.opening_balance)}<span class="bl ${C.owesLabelType === r.balance_type ? 'owe' : ''}">${esc(C.balanceShort[r.balance_type])}</span>` : money(0);
     const loc = [r.city, r.state].filter(Boolean).join(', ');
-    return `<tr><td><b>${esc(r[NAME])}</b>${r.email ? `<span class="sub2">${esc(r.email)}</span>` : ''}</td><td>${esc(r.phone)}</td><td>${esc(r.gst_number || '—')}</td><td>${esc(loc || '—')}</td><td>${bal}</td>
+    return `<tr><td><b>${esc(r[NAME])}</b>${r.email ? `<span class="sub2">${esc(r.email)}</span>` : ''}</td><td>${esc(r.phone)}</td><td>${esc(r.gst_number || '—')}</td><td>${esc(loc || '—')}</td><td>${bal}</td>${C.showOutstanding ? `<td data-out="${r.id}">…</td>` : ''}
       <td><span class="b ${r.is_active ? 'in' : 'arc'}">${r.is_active ? 'Active' : 'Inactive'}</span></td>
       <td><div class="acts"><button class="ghost" data-act="view" data-id="${r.id}">View</button>${canWrite() ? `<button class="ghost" data-act="edit" data-id="${r.id}">Edit</button><button class="${r.is_active ? 'ghost' : ''}" data-act="${r.is_active ? 'off' : 'on'}" data-id="${r.id}">${r.is_active ? 'Deactivate' : 'Activate'}</button>` : ''}</div></td></tr>`;
   }).join('');
+  if (C.showOutstanding) loadOutstanding(data.map(r => r.id), my);
+}
+
+// Live supplier balance from purchases (Phase 4): > 0 you owe the supplier, < 0 supplier owes you. Derived in the DB, never typed in.
+const outMap = {};
+const outText = n => !n ? money(0) : n > 0 ? `${money(n)} to pay` : `${money(-n)} advance (supplier owes you)`;
+const outHtml = n => !n ? money(0) : n > 0 ? `${money(n)}<span class="bl owe">To pay</span>` : `${money(-n)}<span class="bl">Advance</span>`;
+async function loadOutstanding(ids, my) {
+  const { data, error } = await db.rpc('supplier_outstanding', { p_company: cid, p_ids: ids });
+  if (my !== reqId) return;
+  if (error) console.warn('supplier_outstanding unavailable', error); else data.forEach(o => { outMap[o.supplier_id] = Number(o.outstanding); });
+  document.querySelectorAll('#rows td[data-out]').forEach(td => { const v = outMap[td.dataset.out]; td.innerHTML = v === undefined ? '—' : outHtml(v); });
 }
 
 // ---------- Validation ----------
@@ -166,6 +179,7 @@ function openView(r) {
   const row = (k, v) => `<dt>${k}</dt><dd>${v ? esc(v) : '—'}</dd>`;
   $('vbody').innerHTML = row('Phone', r.phone) + row('Email', r.email) + row('GST number', r.gst_number) + row('Address', r.address) + row('City', r.city) + row('State', r.state) + row('Pincode', r.pincode)
     + `<dt>Opening balance</dt><dd>${money(r.opening_balance)}${Number(r.opening_balance) > 0 ? ' · ' + esc(C.balanceOption[r.balance_type]) : ''}</dd>`
+    + (C.showOutstanding && outMap[r.id] !== undefined ? `<dt>Outstanding now</dt><dd>${esc(outText(outMap[r.id]))}</dd>` : '')
     + row('Notes', r.notes) + `<dt>Status</dt><dd>${r.is_active ? 'Active' : 'Inactive'}</dd>` + row('Added on', new Date(r.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }));
   $('vdlg').showModal();
 }
@@ -203,7 +217,7 @@ function wire() {
 function init() { shell(); wire(); return boot(); }
 async function boot() {
   $('state').innerHTML = ''; $('tw').hidden = false;
-  $('rows').innerHTML = '<tr><td colspan="7"><div class="sk"></div></td></tr>'.repeat(3);
+  $('rows').innerHTML = `<tr><td colspan="${NCOL}"><div class="sk"></div></td></tr>`.repeat(3);
   // 1) verify session  2) resolve the user's company + role (same lookup as dashboard.html)  3) only then query company-scoped data
   const { data: { session } } = await db.auth.getSession();
   if (!session) return location.replace('login.html');
