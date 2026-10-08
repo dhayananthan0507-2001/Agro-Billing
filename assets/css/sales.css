@@ -1,0 +1,13 @@
+/* Phase 5: Sales & Billing page (loaded after party.css and purchases.css, which supply the shared look, item table and print rules) */
+.cards.s4{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.card .hint{display:block;margin-top:2px}
+.custbox{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.custbox .cn{font-weight:700}
+.seg{display:flex;gap:6px;flex-wrap:wrap}.seg button{background:#e8e2c8;color:var(--leaf)}.seg button.on{background:var(--leaf);color:#fff}
+.stk{display:block;font-size:.8rem;color:#6b7a63}.stk.low{color:var(--warn);font-weight:600}
+td.gst{color:#6b7a63;white-space:nowrap}
+.inv-h{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+
+/* on-screen invoice (the same markup is used for printing; print rules live in purchases.css under #printArea) */
+.inv h1{font-size:1.3rem;margin:0}.inv .meta{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;margin:12px 0}
+.inv table.tot{margin-left:auto;width:min(380px,100%);margin-top:10px}.inv .r{text-align:right;font-variant-numeric:tabular-nums}
+.inv td,.inv th{white-space:normal}.inv .stamp{font-size:1.4rem;font-weight:700;letter-spacing:2px;border:3px solid var(--err);color:var(--err);display:inline-block;padding:2px 12px;margin:8px 0}

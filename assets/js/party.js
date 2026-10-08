@@ -102,14 +102,15 @@ async function load() {
   if (C.showOutstanding) loadOutstanding(data.map(r => r.id), my);
 }
 
-// Live supplier balance from purchases (Phase 4): > 0 you owe the supplier, < 0 supplier owes you. Derived in the DB, never typed in.
+// Live balance derived in the DB from purchases (suppliers: > 0 you owe them) or credit sales (customers: > 0 they owe you). Never typed in.
 const outMap = {};
-const outText = n => !n ? money(0) : n > 0 ? `${money(n)} to pay` : `${money(-n)} advance (supplier owes you)`;
-const outHtml = n => !n ? money(0) : n > 0 ? `${money(n)}<span class="bl owe">To pay</span>` : `${money(-n)}<span class="bl">Advance</span>`;
+const OL = C.outLabels || { pos: 'To pay', neg: 'Advance', posText: 'to pay', negText: 'advance (supplier owes you)' };
+const outText = n => !n ? money(0) : n > 0 ? `${money(n)} ${OL.posText}` : `${money(-n)} ${OL.negText}`;
+const outHtml = n => !n ? money(0) : n > 0 ? `${money(n)}<span class="bl owe">${OL.pos}</span>` : `${money(-n)}<span class="bl">${OL.neg}</span>`;
 async function loadOutstanding(ids, my) {
-  const { data, error } = await db.rpc('supplier_outstanding', { p_company: cid, p_ids: ids });
+  const { data, error } = await db.rpc(C.outstandingRpc || 'supplier_outstanding', { p_company: cid, p_ids: ids });
   if (my !== reqId) return;
-  if (error) console.warn('supplier_outstanding unavailable', error); else data.forEach(o => { outMap[o.supplier_id] = Number(o.outstanding); });
+  if (error) console.warn('outstanding unavailable', error); else data.forEach(o => { outMap[o.supplier_id ?? o.customer_id] = Number(o.outstanding); });
   document.querySelectorAll('#rows td[data-out]').forEach(td => { const v = outMap[td.dataset.out]; td.innerHTML = v === undefined ? '—' : outHtml(v); });
 }
 
