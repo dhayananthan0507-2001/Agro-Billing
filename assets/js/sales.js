@@ -55,6 +55,7 @@ const ERR = {
   INVALID_TAX_RATE: 'A product has an invalid GST rate. Fix it on the Products page.', DISCOUNT_TOO_HIGH: 'A discount is larger than the amount it applies to.', PAID_EXCEEDS_TOTAL: 'Amount received cannot be more than the bill total.',
   CUSTOMER_REQUIRED_FOR_CREDIT: 'Select a saved customer to sell on credit or take a part payment.', INVALID_PAYMENT_METHOD: 'Choose Cash, UPI, Card or Credit.',
   SALE_CANCELLED: 'This sale is cancelled and cannot be changed.', ALREADY_CANCELLED: 'This sale is already cancelled.', TOO_MANY_ITEMS: 'A bill can have at most 200 items.',
+  PAYMENTS_EXIST: 'Payments are already recorded against this sale. Void the later payments on the Payments page before lowering the amount received.',
   INSUFFICIENT_STOCK: 'Not enough stock for one of the products (expired batches cannot be sold).', ALLOCATION_MISMATCH: 'Stock records for this sale do not match. Please contact support before changing it.'
 };
 function friendly(e) {
@@ -249,12 +250,13 @@ async function openEditor(id) {
   $('listView').hidden = true; $('editView').hidden = false; window.scrollTo(0, 0);
   renderCust(); renderItems();
 }
-function closeEditor() { ed = null; $('editView').hidden = true; $('editView').innerHTML = ''; $('listView').hidden = false; }
+function closeEditor() { PopList.hide(); ed = null; $('editView').hidden = true; $('editView').innerHTML = ''; $('listView').hidden = false; }
 
 function renderCust() {
+  PopList.hide();
   $('custwrap').innerHTML = ed.customer
     ? `<div class="custbox"><b>Customer:</b><span class="cn">${esc(ed.customer.customer_name)}</span><span class="hint">${esc(ed.customer.phone || '')}</span><button type="button" class="ghost" id="cchg">Change</button></div><small class="hint" id="ecbal"></small>`
-    : `<div class="g"><div class="f"><label for="ecq">Saved customer <span class="hint">(optional — leave empty for a walk-in)</span></label><div class="ps"><input id="ecq" placeholder="Search by name or phone…" autocomplete="off"><div class="pl" id="ecl" hidden></div></div></div>
+    : `<div class="g"><div class="f"><label for="ecq">Saved customer <span class="hint">(optional — leave empty for a walk-in)</span></label><input id="ecq" placeholder="Search by name or phone…" autocomplete="off"></div>
        <div><label for="ecname">Walk-in name</label><input id="ecname" maxlength="150" value="${esc(ed.wname)}" placeholder="Walk-in Customer"></div><div><label for="ecphone">Walk-in phone</label><input id="ecphone" inputmode="tel" maxlength="20" value="${esc(ed.wphone)}"></div></div>`;
   if (ed.customer) showCustBal();
 }
@@ -264,21 +266,24 @@ async function showCustBal() {
   if (error || !data?.length || ed?.customer?.id !== id) return;
   const n = Number(data[0].outstanding); el.textContent = !n ? 'Nothing outstanding right now.' : n > 0 ? `This customer currently owes you ${money(n)}.` : `You currently owe this customer ${money(-n)} (advance).`;
 }
-async function searchCustomers(term, box) {
-  const s = term.trim().replace(/[,()%\\*"]/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!s) { box.hidden = true; return; }
+let searchSeq = 0;      // a newer search makes older, slower answers irrelevant
+async function searchCustomers(input) {
+  const s = input.value.trim().replace(/[,()%\\*"]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!s) { PopList.hide(); return; }
+  const my = ++searchSeq;
   const { data, error } = await db.from('customers').select('id,customer_name,phone').eq('company_id', cid).eq('is_active', true)
     .or(`customer_name.ilike.%${s}%,phone.ilike.%${s.replace(/[\s-]/g, '')}%`).order('customer_name').limit(10);
-  if (error) { console.warn(error); box.innerHTML = '<div class="none">Search failed. Try again.</div>'; box.hidden = false; return; }
-  box._res = data;
-  box.innerHTML = data.length ? data.map((c, i) => `<button type="button" data-cpick="${i}"><b>${esc(c.customer_name)}</b> <span class="hint">${esc(c.phone)}</span></button>`).join('') : '<div class="none">No active customer found. Leave empty for a walk-in.</div>';
-  box.hidden = false;
+  if (my !== searchSeq || !input.isConnected) return;
+  if (error) { console.warn(error); PopList.show(input, '<div class="none">Search failed. Try again.</div>', null); return; }
+  PopList.show(input, data.length ? data.map((c, i) => `<button type="button" data-i="${i}"><b>${esc(c.customer_name)}</b><span class="hint">${esc(c.phone)}</span></button>`).join('') : '<div class="none">No active customer found. Leave empty for a walk-in.</div>',
+    i => { ed.customer = data[i]; renderCust(); recalc(); });
 }
 
 function renderItems() {
+  PopList.hide();
   $('items').innerHTML = ed.lines.map(l => {
     const pc = l.product ? `<div><b>${esc(l.product.product_name)}</b><span class="sub2">${esc(l.product.sku || l.product.product_code || '')}</span><span class="stk" id="sk-${l.k}"></span><button type="button" class="ghost" data-chg="${l.k}" style="margin-top:4px">Change</button></div>`
-      : `<div class="ps"><input class="pq" data-k="${l.k}" placeholder="Search product, SKU or code…" autocomplete="off" aria-label="Product"><div class="pl" hidden></div></div>`;
+      : `<input class="pq" data-k="${l.k}" placeholder="Search product, SKU or code…" autocomplete="off" aria-label="Product">`;
     const inp = (f, ph) => `<input data-k="${l.k}" data-f="${f}" inputmode="decimal" value="${esc(l[f])}" placeholder="${ph}" aria-label="${f}">`;
     return `<tr><td class="pc">${pc}</td><td>${inp('qty', '0')}</td><td>${esc(l.product?.unit || '—')}</td><td>${inp('price', '0.00')}</td><td>${inp('disc', '0.00')}</td><td class="gst">${l.product ? esc(String(Number(l.rate || 0))) + '%' : '—'}</td>
       <td class="nm"><span id="lt-${l.k}">—</span><small class="fe" id="le-${l.k}"></small></td><td><button type="button" class="ghost" data-rm="${l.k}" title="Remove item" aria-label="Remove item">✕</button></td></tr>`;
@@ -307,20 +312,23 @@ function recalc() {
   return c;
 }
 
-// product search (server-side, debounced, 10 results, with live stock)
+// product search (server-side, debounced, 10 results, with live stock) shown in the shared PopList
 const searchT = {};
-async function searchProducts(term, box) {
-  const s = term.trim().replace(/[,()%\\*"]/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!s) { box.hidden = true; return; }
+async function searchProducts(input) {
+  const s = input.value.trim().replace(/[,()%\\*"]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!s) { PopList.hide(); return; }
+  const my = ++searchSeq;
   const { data, error } = await db.from('products').select('id,product_name,sku,product_code,unit,selling_price,tax_rate').eq('company_id', cid).eq('is_active', true)
     .or(`product_name.ilike.%${s}%,sku.ilike.%${s}%,product_code.ilike.%${s}%`).order('product_name').limit(10);
-  if (error) { console.warn(error); box.innerHTML = '<div class="none">Search failed. Try again.</div>'; box.hidden = false; return; }
+  if (my !== searchSeq || !input.isConnected) return;
+  if (error) { console.warn(error); PopList.show(input, '<div class="none">Search failed. Try again.</div>', null); return; }
   const st = data.length ? await db.rpc('product_sellable_stock', { p_company: cid, p_ids: data.map(p => p.id) }) : { data: [] };
+  if (my !== searchSeq || !input.isConnected) return;
   const sell = {}; (st.data || []).forEach(r => { sell[r.product_id] = Number(r.sellable); });
   data.forEach(p => { p.sellable = sell[p.id]; });
-  box._res = data;
-  box.innerHTML = data.length ? data.map((p, i) => `<button type="button" data-pick="${i}"><b>${esc(p.product_name)}</b> <span class="hint">${esc([p.sku || p.product_code, money(p.selling_price) + '/' + p.unit].filter(Boolean).join(' · '))} · ${p.sellable === undefined ? 'stock ?' : `Stock: ${qtyTxt(p.sellable)}`}</span></button>`).join('') : '<div class="none">No active product found.</div>';
-  box.hidden = false;
+  const k = +input.dataset.k;
+  PopList.show(input, data.length ? data.map((p, i) => `<button type="button" data-i="${i}"><b>${esc(p.product_name)}</b><span class="row2"><span>${p.sellable === undefined ? 'Stock: ?' : `Stock: ${qtyTxt(p.sellable)} ${esc(p.unit)}`}</span><span>${money(p.selling_price)}/${esc(p.unit)}</span></span>${p.sku || p.product_code ? `<span class="hint">${esc(p.sku || p.product_code)}</span>` : ''}</button>`).join('') : '<div class="none">No active product found.</div>',
+    i => pick(k, data[i]));
 }
 function pick(k, p) {
   const l = ed.lines.find(x => x.k === k); if (!l) return;
@@ -419,28 +427,17 @@ function wire() {
     const rm = t.closest('[data-rm]'); if (rm) { const k = +rm.dataset.rm; ed.lines = ed.lines.filter(l => l.k !== k); if (!ed.lines.length) ed.lines.push(newLine()); renderItems(); return; }
     const chg = t.closest('[data-chg]'); if (chg) { const l = ed.lines.find(x => x.k === +chg.dataset.chg); if (l) { l.product = null; l.avail = 0; renderItems(); } return; }
   };
-  ev.addEventListener('mousedown', e => {
-    const b = e.target.closest('[data-pick],[data-cpick]'); if (!b) return; e.preventDefault();
-    const box = b.parentElement;
-    if (b.dataset.pick !== undefined) pick(+box.parentElement.querySelector('.pq').dataset.k, box._res[+b.dataset.pick]);
-    else { ed.customer = box._res[+b.dataset.cpick]; renderCust(); recalc(); }
-  });
   ev.addEventListener('input', e => {
     const t = e.target;
-    if (t.classList.contains('pq')) { const k = t.dataset.k; clearTimeout(searchT[k]); searchT[k] = setTimeout(() => searchProducts(t.value, t.nextElementSibling), 250); return; }
-    if (t.id === 'ecq') { clearTimeout(searchT.c); searchT.c = setTimeout(() => searchCustomers(t.value, $('ecl')), 250); return; }
+    if (t.classList.contains('pq')) { const k = t.dataset.k; clearTimeout(searchT[k]); searchT[k] = setTimeout(() => searchProducts(t), 250); return; }
+    if (t.id === 'ecq') { clearTimeout(searchT.c); searchT.c = setTimeout(() => searchCustomers(t), 250); return; }
     if (t.id === 'ecname') { ed.wname = t.value; return; } if (t.id === 'ecphone') { ed.wphone = t.value; return; }
     if (t.id === 'epaid') ed.paidTouched = true;
     if (t.dataset.f) { const l = ed.lines.find(x => x.k === +t.dataset.k); if (l) l[t.dataset.f] = t.value; }
     recalc();
   });
   ev.addEventListener('change', e => { if (e.target.id === 'epm') recalc(); });
-  ev.addEventListener('keydown', e => {
-    if (e.key !== 'Enter') return;
-    if (e.target.classList.contains('pq')) { e.preventDefault(); const box = e.target.nextElementSibling; if (box._res?.length) pick(+e.target.dataset.k, box._res[0]); }
-    else if (e.target.id === 'ecq') { e.preventDefault(); const box = $('ecl'); if (box._res?.length) { ed.customer = box._res[0]; renderCust(); recalc(); } }
-  });
-  document.addEventListener('click', e => { if (!e.target.closest('.ps')) document.querySelectorAll('.pl').forEach(b => b.hidden = true); });
+  ev.addEventListener('keydown', e => { if (e.target.classList.contains('pq') || e.target.id === 'ecq') PopList.key(e); });   // ↑ ↓ Enter Esc in the pop-up list
   $('out').onclick = async e => { e.preventDefault(); await db.auth.signOut(); location.replace('login.html'); };
   db.auth.onAuthStateChange(evt => { if (evt === 'SIGNED_OUT') location.replace('login.html'); });
 }

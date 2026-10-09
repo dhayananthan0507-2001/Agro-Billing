@@ -56,6 +56,7 @@ const ERR = {
   PAID_EXCEEDS_TOTAL: 'Amount paid cannot be more than the grand total.', PURCHASE_CANCELLED: 'This purchase is cancelled and cannot be changed.',
   ALREADY_CANCELLED: 'This purchase is already cancelled.', CANNOT_REVERT_TO_DRAFT: 'A completed purchase cannot go back to draft. Cancel it instead.',
   INSUFFICIENT_STOCK: 'Part of this stock has already been sold or used, so it cannot be reduced that far.', BATCH_DATE_MISMATCH: 'That batch number already exists with different manufacturing/expiry dates.',
+  PAYMENTS_EXIST: 'Payments are already recorded against this purchase. Void the later payments on the Payments page before lowering the amount paid.',
   TOO_MANY_ITEMS: 'A purchase can have at most 200 items.', INVALID_STATUS: 'Invalid purchase status.'
 };
 function friendly(e) {
@@ -235,12 +236,13 @@ async function openEditor(id) {
   $('listView').hidden = true; $('editView').hidden = false; window.scrollTo(0, 0);
   renderItems(); showSupBal();
 }
-function closeEditor() { ed = null; $('editView').hidden = true; $('editView').innerHTML = ''; $('listView').hidden = false; }
+function closeEditor() { PopList.hide(); ed = null; $('editView').hidden = true; $('editView').innerHTML = ''; $('listView').hidden = false; }
 
 function renderItems() {
+  PopList.hide();
   $('items').innerHTML = ed.lines.map(l => {
     const pc = l.product ? `<div><b>${esc(l.product.product_name)}</b><span class="sub2">${esc([l.product.sku || l.product.product_code].filter(Boolean).join(''))}</span>${l.locked ? '' : `<button type="button" class="ghost" data-chg="${l.k}" style="margin-top:4px">Change</button>`}</div>`
-      : `<div class="ps"><input class="pq" data-k="${l.k}" placeholder="Search product, SKU or code…" autocomplete="off" aria-label="Product"><div class="pl" hidden></div></div>`;
+      : `<input class="pq" data-k="${l.k}" placeholder="Search product, SKU or code…" autocomplete="off" aria-label="Product">`;
     const inp = (f, ph) => `<input data-k="${l.k}" data-f="${f}" inputmode="decimal" value="${esc(l[f])}" placeholder="${ph}" aria-label="${f}">`;
     return `<tr data-row="${l.k}"><td class="pc">${pc}</td><td>${inp('qty', '0')}</td><td>${esc(l.product?.unit || '—')}</td><td>${inp('price', '0.00')}</td><td>${inp('disc', '0.00')}</td><td>${inp('rate', '0')}</td>
       <td class="nm"><span id="lt-${l.k}">—</span><small class="fe" id="le-${l.k}"></small></td><td><button type="button" class="ghost" data-rm="${l.k}" title="Remove item" aria-label="Remove item">✕</button></td></tr>
@@ -272,15 +274,17 @@ async function showSupBal() {
 
 // product search (server-side, debounced, 10 results)
 const searchT = {};
-async function searchProducts(k, term, box) {
-  const s = term.trim().replace(/[,()%\\*"]/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!s) { box.hidden = true; return; }
+let searchSeq = 0;      // a newer search makes older, slower answers irrelevant
+async function searchProducts(input) {
+  const s = input.value.trim().replace(/[,()%\\*"]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!s) { PopList.hide(); return; }
+  const my = ++searchSeq, k = +input.dataset.k;
   const { data, error } = await db.from('products').select('id,product_name,sku,product_code,unit,purchase_price,tax_rate').eq('company_id', cid).eq('is_active', true)
     .or(`product_name.ilike.%${s}%,sku.ilike.%${s}%,product_code.ilike.%${s}%`).order('product_name').limit(10);
-  if (error) { console.warn(error); box.innerHTML = '<div class="none">Search failed. Try again.</div>'; box.hidden = false; return; }
-  box._res = data;
-  box.innerHTML = data.length ? data.map((p, i) => `<button type="button" data-pick="${i}"><b>${esc(p.product_name)}</b> <span class="hint">${esc([p.sku || p.product_code, p.unit].filter(Boolean).join(' · '))}</span></button>`).join('') : '<div class="none">No active product found.</div>';
-  box.hidden = false;
+  if (my !== searchSeq || !input.isConnected) return;
+  if (error) { console.warn(error); PopList.show(input, '<div class="none">Search failed. Try again.</div>', null); return; }
+  PopList.show(input, data.length ? data.map((p, i) => `<button type="button" data-i="${i}"><b>${esc(p.product_name)}</b><span class="row2"><span>${esc([p.sku || p.product_code, p.unit].filter(Boolean).join(' · '))}</span><span>${money(p.purchase_price)}/${esc(p.unit)}</span></span></button>`).join('') : '<div class="none">No active product found.</div>',
+    i => pick(k, data[i]));
 }
 function pick(k, p) {
   const l = ed.lines.find(x => x.k === k); if (!l) return;
@@ -369,19 +373,14 @@ function wire() {
     const rm = t.closest('[data-rm]'); if (rm) { const k = +rm.dataset.rm; ed.lines = ed.lines.filter(l => l.k !== k); if (!ed.lines.length) ed.lines.push(newLine()); renderItems(); return; }
     const chg = t.closest('[data-chg]'); if (chg) { const l = ed.lines.find(x => x.k === +chg.dataset.chg); if (l) { l.product = null; renderItems(); } return; }
   };
-  ev.addEventListener('mousedown', e => {
-    const b = e.target.closest('[data-pick]'); if (!b) return; e.preventDefault();
-    const box = b.parentElement, inp = box.parentElement.querySelector('.pq'); pick(+inp.dataset.k, box._res[+b.dataset.pick]);
-  });
   ev.addEventListener('input', e => {
     const t = e.target;
-    if (t.classList.contains('pq')) { const k = t.dataset.k; clearTimeout(searchT[k]); searchT[k] = setTimeout(() => searchProducts(k, t.value, t.nextElementSibling), 250); return; }
+    if (t.classList.contains('pq')) { const k = t.dataset.k; clearTimeout(searchT[k]); searchT[k] = setTimeout(() => searchProducts(t), 250); return; }
     if (t.dataset.f) { const l = ed.lines.find(x => x.k === +t.dataset.k); if (l) l[t.dataset.f] = t.value; }
     recalc();
   });
-  ev.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList.contains('pq')) { e.preventDefault(); const box = e.target.nextElementSibling; if (box._res?.length) pick(+e.target.dataset.k, box._res[0]); } });
+  ev.addEventListener('keydown', e => { if (e.target.classList.contains('pq')) PopList.key(e); });   // ↑ ↓ Enter Esc in the pop-up list
   ev.addEventListener('change', e => { if (e.target.id === 'esup') showSupBal(); if (e.target.type === 'date') { const l = ed.lines.find(x => x.k === +e.target.dataset.k); if (l) l[e.target.dataset.f] = e.target.value; } });
-  document.addEventListener('click', e => { if (!e.target.closest('.ps')) document.querySelectorAll('.pl').forEach(b => b.hidden = true); });
   $('out').onclick = async e => { e.preventDefault(); await db.auth.signOut(); location.replace('login.html'); };
   db.auth.onAuthStateChange(evt => { if (evt === 'SIGNED_OUT') location.replace('login.html'); });
 }

@@ -18,12 +18,13 @@ dialog{border:0;border-radius:16px;padding:22px;width:min(560px,94vw);box-shadow
 #toast{position:fixed;right:18px;bottom:18px;padding:12px 16px;border-radius:10px;color:#fff;display:none;z-index:9}.pg{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px}
 @media(max-width:760px){body{grid-template-columns:1fr}nav{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px}nav h1{margin:0}}
 </style></head><body>
-<nav><h1>Agro POS</h1><a class="on" href="#">Products</a><a href="customers.html">Customers</a><a href="suppliers.html">Suppliers</a><a href="purchases.html">Purchases</a><a href="sales.html">Sales &amp; Billing</a><a href="#" id="out">Sign out</a></nav>
+<nav><h1>Agro POS</h1><a class="on" href="#">Products</a><a href="customers.html">Customers</a><a href="suppliers.html">Suppliers</a><a href="purchases.html">Purchases</a><a href="sales.html">Sales &amp; Billing</a><a href="payments.html">Payments</a><a href="expenses.html">Expenses</a><a href="#" id="out">Sign out</a></nav>
 <main>
 <div class="top"><div><h2>Products</h2><small id="who"></small></div><button id="add" hidden>+ Add product</button></div>
 <div class="cards" id="cards"></div>
 <div class="cards" id="cards2" style="margin-top:0"></div>
 <div class="cards" id="cards3" style="margin-top:0"></div>
+<div class="cards" id="cards4" style="margin-top:0"></div>
 <div id="recent"></div>
 <div class="bar"><input id="q" placeholder="Search name, code, SKU, barcode, brand…"><select id="fc"><option value="">All categories</option></select><select id="fs"><option value="">Active</option><option value="0">Archived</option></select></div>
 <div class="tw"><table><thead><tr><th>Product</th><th>Code / SKU</th><th>Category</th><th>Brand</th><th>Unit</th><th>Cost</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
@@ -61,7 +62,7 @@ async function init(){
   const{data:m,error}=await sb.from('company_members').select('company_id,role,companies(name)').eq('user_id',session.user.id).limit(1);
   if(error||!m.length)return location.replace('login.html');
   cid=m[0].company_id;role=m[0].role;$('who').textContent=m[0].companies.name+' · '+role;$('add').hidden=!canWrite();
-  await loadCats();stats();load();partyStats();salesStats();
+  await loadCats();stats();load();partyStats();salesStats();financeStats();
 }
 async function loadCats(){
   let{data}=await sb.from('categories').select('id,name').eq('company_id',cid).eq('status','active').order('name');
@@ -86,6 +87,16 @@ async function salesStats(){ // Phase 5: today's sales, bills, received, pending
    $('cards3').innerHTML=[["Today's sales",m(s.today_total)],["Today's bills",s.today_count],['Received today',m(s.today_paid)],['Pending payments',m(s.pending_total)]].map(([k,v])=>`<div class="card"><small>${k}</small><b>${esc(v)}</b></div>`).join('')}
   if(!rc.error&&rc.data.length){const py={paid:'in',partial:'low',pending:'out'};
    $('recent').innerHTML=`<div class="tw" style="margin-bottom:16px"><table><thead><tr><th>Recent sales</th><th>Customer</th><th>Date</th><th>Total</th><th>Payment</th><th>Status</th></tr></thead><tbody>${rc.data.map(r=>`<tr><td><a href="sales.html">${esc(r.invoice_no)}</a></td><td>${esc(r.customer_name)}</td><td>${esc(r.sale_date)}</td><td>${m(r.grand_total)}</td><td><span class="b ${py[r.payment_status]||'arc'}">${esc(r.payment_status)}</span></td><td><span class="b ${r.status==='completed'?'in':'out'}">${esc(r.status)}</span></td></tr>`).join('')}</tbody></table></div>`}
+  }catch(e){console.warn(e)}
+}
+async function financeStats(){ // Phase 6: money in today, who owes whom, and (owner/manager only) expenses; failure here must never affect Products
+  try{const d=new Date(),day=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const[fs,ss]=await Promise.all([sb.rpc('finance_stats',{p_company:cid,p_date:day}),sb.rpc('sale_stats',{p_company:cid,p_date:day})]);
+  if(fs.error)return console.warn('finance_stats unavailable',fs.error);
+  const m=v=>'₹'+Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}),f=fs.data,c=[];
+  if(canWrite()){c.push(["Today's expenses",m(f.today_expenses)]);if(!ss.error)c.push(['Net sales after expenses (today)',m(Number(ss.data.today_total)-Number(f.today_expenses))])}
+  c.push(['Money received today',m(f.money_in_today)],['Customers owe you',m(f.receivable)],['You owe suppliers',m(f.payable)]);
+  $('cards4').innerHTML=c.map(([k,v])=>`<div class="card"><small>${k}</small><b>${esc(v)}</b></div>`).join('')
   }catch(e){console.warn(e)}
 }
 async function partyStats(){ // Phase 3 counters; failure here must never affect Products
