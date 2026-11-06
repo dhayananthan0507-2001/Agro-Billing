@@ -1,0 +1,20 @@
+/* Phase 7: Stock, Statement and Reports pages (loaded after party.css, purchases.css, sales.css) */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 0;border-bottom:2px solid #e3eadc}
+.tabs button{background:none;color:var(--leaf);border-radius:8px 8px 0 0;padding:9px 14px;border-bottom:3px solid transparent;margin-bottom:-2px}
+.tabs button.on{background:#fff;border-bottom-color:var(--leaf);box-shadow:0 -2px 6px #0001}
+.sec{margin:18px 0}.sec h3{margin:0 0 6px;font:700 1.05rem Georgia,serif;color:var(--leaf)}
+.chip{display:inline-flex;gap:8px;align-items:center;background:#eef5e9;border-radius:99px;padding:4px 6px 4px 12px}.chip button{padding:2px 8px;border-radius:99px}
+.up{color:var(--leaf);font-weight:600}.down{color:var(--err);font-weight:600}
+.muted-row td{color:#8a8a8a;background:#fafafa}.muted-row td s{color:#a0a0a0}
+.cards.s5{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.tot-row td{font-weight:700;border-top:2px solid #cfd8c7;background:#f3f7ee}
+.warnbox{background:#fff8e1;border:1px solid #e8d48a;color:#6b5a14;border-radius:10px;padding:9px 13px;margin:10px 0;font-size:.9rem}
+.infobox{background:#eef5e9;border:1px solid #cfe0c5;color:#2f4a2c;border-radius:10px;padding:9px 13px;margin:10px 0;font-size:.9rem}
+.stmt-h{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin:10px 0}
+.stmt-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:12px 0}.stmt-sum div{background:#fff;border-radius:10px;padding:10px 14px;box-shadow:0 2px 8px #0001}.stmt-sum small{color:#6b7a63;display:block}.stmt-sum b{font-size:1.15rem}
+.rt{text-align:right;font-variant-numeric:tabular-nums}
+@media print{
+  nav,.noprint,#toast,.tabs,.bar,.top button,dialog{display:none!important}
+  body{background:#fff}main{padding:0}.tw{box-shadow:none;overflow:visible}table{font-size:12px}th,td{padding:4px 6px!important;white-space:normal!important}
+  .stmt-sum div{box-shadow:none;border:1px solid #999}.muted-row td{color:#666}
+}
