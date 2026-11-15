@@ -1,0 +1,25 @@
+/* Phase 7 Step 2 follow-up: plain SVG / CSS charts for the Reports page. No library, no external files. */
+.chart{background:#fff;border-radius:12px;box-shadow:0 2px 8px #0001;padding:12px 14px 10px;margin:14px 0}
+.chart h3{margin:0;font:700 1.05rem Georgia,serif;color:var(--leaf)}
+.chart .csub{margin:2px 0 8px;color:#6b7a63;font-size:.85rem}
+.chart-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.chart svg{display:block;width:100%;height:auto}
+.chart svg text{font:11px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;fill:#4a5a43}
+.chart svg .val{font-size:10.5px;font-weight:600;fill:#2f4a2c}
+.chart svg .ylab{text-anchor:end}
+.chart svg .grid{stroke:#e6ece0;stroke-width:1;stroke-dasharray:3 3}
+.chart svg .axis{stroke:#bcc8b3;stroke-width:1}
+.chart svg .bar{transition:opacity .15s}
+.chart svg .bar:hover{opacity:.78}
+.bar-sales{fill:var(--moss);background:var(--moss)}
+.bar-purchases{fill:var(--warn);background:var(--warn)}
+.bar-expenses{fill:var(--err);background:var(--err)}
+.chart-empty{padding:22px 8px;text-align:center;color:#6b7a63;background:#f6f8f2;border-radius:8px;font-size:.92rem}
+.hbars{display:flex;flex-direction:column;gap:7px}
+.hrow{display:grid;grid-template-columns:minmax(90px,28%) 1fr auto;align-items:center;gap:10px;font-size:.88rem}
+.hrow .hl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#3a4a33}
+.hrow .ht{height:16px;background:#eef2e8;border-radius:8px;overflow:hidden}
+.hrow .hb{display:block;height:100%;border-radius:8px;min-width:2px}
+.hrow .hv{white-space:nowrap;font-variant-numeric:tabular-nums;color:#2f4a2c;font-weight:600}
+@media (max-width:560px){.hrow{grid-template-columns:1fr auto}.hrow .ht{grid-column:1 / -1;order:3}.chart{padding:10px 10px 8px}}
+@media print{.chart{box-shadow:none;border:1px solid #ccc;break-inside:avoid}.chart-scroll{overflow:visible}}

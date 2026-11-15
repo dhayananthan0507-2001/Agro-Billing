@@ -19,6 +19,48 @@ const card = (k, v, h) => `<div class="card"><small>${esc(k)}</small><b>${esc(v)
 const section = (title, body) => `<div class="sec"><h3>${esc(title)}</h3>${body}</div>`;
 const periodRows = d => d.rows.map(r => [label(r.period, group), r.bills]);
 
+// ---------- charts (plain SVG / CSS: no library). Every chart is drawn from the SAME report response that fills the tables, so it always matches them. ----------
+const EMPTY_CHART = 'No data to chart for this period.';
+const compact = v => { v = Number(v) || 0; const a = Math.abs(v); return '₹' + (a >= 1e7 ? +(v / 1e7).toFixed(2) + ' Cr' : a >= 1e5 ? +(v / 1e5).toFixed(2) + ' L' : a >= 1e3 ? +(v / 1e3).toFixed(2) + 'k' : +v.toFixed(2)); };
+const niceMax = m => { if (!(m > 0)) return 1; const p = Math.pow(10, Math.floor(Math.log10(m))), f = m / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; };
+const short = (p, g) => new Date(p + 'T00:00:00').toLocaleDateString('en-IN', g === 'month' ? { month: 'short', year: '2-digit' } : { day: 'numeric', month: 'short' });
+const GNAME = { day: 'day', week: 'week', month: 'month' };
+const chartBox = (key, title, sub, inner) => `<div class="chart" data-chart="${key}"><h3>${esc(title)}</h3><p class="csub">${esc(sub)}</p>${inner}</div>`;
+const emptyChart = (key, title, sub) => chartBox(key, title, sub, `<div class="chart-empty">${EMPTY_CHART}</div>`);
+// data: [{ label, tip, value, cls }]  (label = short x label, tip = full text shown on hover)
+function barChart(key, title, sub, data) {
+  const vals = data.map(d => Number(d.value) || 0);
+  if (!data.length || vals.every(v => v <= 0)) return emptyChart(key, title, sub);
+  const W = 720, H = 270, L = 58, R = 12, T = 20, B = data.some(d => d.label.length > 9) && data.length > 6 ? 62 : 44, n = data.length, pw = W - L - R, ph = H - T - B;
+  const max = niceMax(Math.max(...vals)), slot = pw / n, bw = Math.min(64, slot * 0.72), step = Math.max(1, Math.ceil(n / 12)), rot = n > 6 && data.some(d => d.label.length > 9);
+  let g = '';
+  for (let i = 0; i <= 4; i++) { const y = T + ph - ph * i / 4; g += `<line class="${i ? 'grid' : 'axis'}" x1="${L}" y1="${y.toFixed(1)}" x2="${W - R}" y2="${y.toFixed(1)}"/><text class="ylab" x="${L - 6}" y="${(y + 3.5).toFixed(1)}">${esc(compact(max * i / 4))}</text>`; }
+  data.forEach((d, i) => {
+    const v = vals[i], h = Math.max(v > 0 ? 1.5 : 0, ph * v / max), x = L + slot * i + (slot - bw) / 2, y = T + ph - h, cx = x + bw / 2;
+    g += `<rect class="bar ${d.cls || 'bar-sales'}" data-value="${v}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2"><title>${esc(d.tip || d.label)}: ${esc(money(v))}</title></rect>`;
+    if (n <= 12 && v > 0) g += `<text class="val" x="${cx.toFixed(1)}" y="${(y - 4).toFixed(1)}" text-anchor="middle">${esc(compact(v))}</text>`;
+    if (i % step === 0) g += rot ? `<text x="${cx.toFixed(1)}" y="${T + ph + 14}" text-anchor="end" transform="rotate(-35 ${cx.toFixed(1)} ${T + ph + 14})">${esc(d.label)}</text>` : `<text x="${cx.toFixed(1)}" y="${T + ph + 16}" text-anchor="middle">${esc(d.label)}</text>`;
+  });
+  const summary = `${title}: ${data.map((d, i) => `${d.tip || d.label} ${money(vals[i])}`).join('; ')}`;
+  return chartBox(key, title, sub, `<div class="chart-scroll"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${esc(summary.slice(0, 400))}" style="min-width:${n > 12 ? n * 26 : 0}px">${g}</svg></div>`);
+}
+// rows: [{ label, value, extra }]  -> horizontal bars with the amount and share of the total
+function hBars(key, title, sub, rows, total) {
+  const max = Math.max(0, ...rows.map(r => Number(r.value) || 0));
+  if (!rows.length || max <= 0) return emptyChart(key, title, sub);
+  return chartBox(key, title, sub, `<div class="hbars">${rows.map(r => { const v = Number(r.value) || 0; return `<div class="hrow" title="${esc(r.label)}: ${esc(money(v))}"><span class="hl">${esc(r.label)}</span><span class="ht"><i class="hb bar-expenses" data-value="${v}" style="width:${(v / max * 100).toFixed(1)}%"></i></span><span class="hv">${esc(money(v))}${Number(total) > 0 ? ' · ' + Math.round(v / Number(total) * 100) + '%' : ''}</span></div>`; }).join('')}</div>`);
+}
+const CH = {
+  overview: d => barChart('overview', 'Sales vs purchases vs expenses', 'For the selected period, excluding GST (purchases include extra charges)',
+    [{ label: 'Net sales', tip: 'Net sales', value: d.sales.net, cls: 'bar-sales' }, { label: 'Net purchases', tip: 'Net purchases', value: d.purchases.net, cls: 'bar-purchases' }, { label: 'Expenses', tip: 'Expenses', value: d.expenses_total, cls: 'bar-expenses' }]),
+  sales: d => barChart('sales', 'Net sales over time', `Net sales (excluding GST) by ${GNAME[group]}`, d.rows.map(r => ({ label: short(r.period, group), tip: label(r.period, group), value: r.net, cls: 'bar-sales' }))),
+  purchases: d => barChart('purchases', 'Purchases over time', `Total purchases (including GST) by ${GNAME[group]}`, d.rows.map(r => ({ label: short(r.period, group), tip: label(r.period, group), value: r.total, cls: 'bar-purchases' }))),
+  expenses: d => hBars('expenses-category', 'Expenses by category', 'Share of the total expenses in the selected period', d.by_category.map(r => ({ label: r.category, value: r.total })), d.total)
+    + barChart('expenses-time', 'Expenses over time', `Expenses by ${GNAME[group]}`, d.rows.map(r => ({ label: short(r.period, group), tip: label(r.period, group), value: r.total, cls: 'bar-expenses' })))
+};
+// a problem inside a chart can never break the report itself: the tables and cards are built separately
+const chart = (k, d) => { try { return CH[k](d); } catch (e) { console.error('[reports] chart', k, e); return ''; } };
+
 function shell() {
   const fin = tabs === FIN;
   $$('app').innerHTML = `
@@ -65,11 +107,11 @@ const RENDER = {
       card('Purchases (incl. GST)', money(p.total), `${p.bills} bill${p.bills === 1 ? '' : 's'}`), card('Expenses', money(d.expenses_total)), card('Estimated gross margin', Number(m.revenue_costed) > 0 ? money(m.margin) : 'Not available', cov === null ? 'no sales' : `estimate · ${cov}% of sales costed · not profit`),
       card('Customers owe you', money(d.receivable), 'as of today'), card('You owe suppliers', money(d.payable), 'as of today'), card('Stock value', money(sv.value), sv.products_cost_missing > 0 ? `${sv.products_cost_missing} product(s) without cost` : 'at batch purchase cost'),
       card('Low / out of stock', `${lo.low} / ${lo.out}`, 'products, as of today'), card('Expired / expiring', `${xp.expired} / ${xp.expiring_soon}`, `batches, next ${d.expiry_days} days`)].join('')}</div>
-      ${noteMargin(m)}${mismatchNote(d.ledger_mismatch)}<p class="hint">Sales, purchases, expenses, money received and margin follow the period above. Owed amounts, stock value and stock alerts are as of today. Open a tab for the detail.</p>`;
+      ${chart('overview', d)}${noteMargin(m)}${mismatchNote(d.ledger_mismatch)}<p class="hint">Sales, purchases, expenses, money received and margin follow the period above. Owed amounts, stock value and stock alerts are as of today. Open a tab for the detail.</p>`;
   },
   sales(d) {
     const t = d.totals; ex = { name: 'sales', head: ['Period', 'Bills', 'Net (excl. GST)', 'GST', 'Total', 'Paid', 'Due'], rows: d.rows.map(r => [label(r.period, group), r.bills, r.net, r.gst, r.total, r.paid, r.due]) };
-    return `<div class="cards s5" style="margin-top:14px">${[card('Total sales', money(t.total), 'incl. GST'), card('Bills', num(t.bills, 0)), card('Net sales', money(t.net), 'excl. GST'), card('Money received', money(d.received.total), 'payments in this period'), card('Still due', money(t.due), 'on these bills')].join('')}</div>`
+    return `<div class="cards s5" style="margin-top:14px">${[card('Total sales', money(t.total), 'incl. GST'), card('Bills', num(t.bills, 0)), card('Net sales', money(t.net), 'excl. GST'), card('Money received', money(d.received.total), 'payments in this period'), card('Still due', money(t.due), 'on these bills')].join('')}</div>` + chart('sales', d)
       + tbl(['Period', '>Bills', '>Net (excl. GST)', '>GST', '>Total', '>Paid', '>Due'], d.rows.map(r => tr([label(r.period, group), N(r.bills), R(r.net), R(r.gst), R(r.total), R(r.paid), R(r.due)])), foot(['Total', N(t.bills), R(t.net), R(t.gst), R(t.total), R(t.paid), R(t.due)]))
       + `<p class="hint">Cancelled bills are left out (${d.cancelled.bills} bill${d.cancelled.bills === 1 ? '' : 's'}, ${money(d.cancelled.total)}).</p>`
       + section('Bills by payment method', tbl(['Method', '>Bills', '>Total'], d.by_method.map(r => tr([r.method.toUpperCase(), N(r.bills), R(r.total)]))))
@@ -78,7 +120,7 @@ const RENDER = {
   },
   purchases(d) {
     const t = d.totals; ex = { name: 'purchases', head: ['Period', 'Bills', 'Net (excl. GST)', 'GST', 'Total', 'Paid', 'Due'], rows: d.rows.map(r => [label(r.period, group), r.bills, r.net, r.gst, r.total, r.paid, r.due]) };
-    return `<div class="cards s5" style="margin-top:14px">${[card('Total purchases', money(t.total), 'incl. GST'), card('Bills', num(t.bills, 0)), card('Net purchases', money(t.net), 'excl. GST, incl. extra charges'), card('Paid', money(t.paid)), card('Still due to suppliers', money(t.due), 'on these bills')].join('')}</div>`
+    return `<div class="cards s5" style="margin-top:14px">${[card('Total purchases', money(t.total), 'incl. GST'), card('Bills', num(t.bills, 0)), card('Net purchases', money(t.net), 'excl. GST, incl. extra charges'), card('Paid', money(t.paid)), card('Still due to suppliers', money(t.due), 'on these bills')].join('')}</div>` + chart('purchases', d)
       + tbl(['Period', '>Bills', '>Net (excl. GST)', '>GST', '>Total', '>Paid', '>Due'], d.rows.map(r => tr([label(r.period, group), N(r.bills), R(r.net), R(r.gst), R(r.total), R(r.paid), R(r.due)])), foot(['Total', N(t.bills), R(t.net), R(t.gst), R(t.total), R(t.paid), R(t.due)]))
       + `<p class="hint">Drafts and cancelled purchases are left out (${d.cancelled.bills} cancelled, ${money(d.cancelled.total)}).</p>`
       + section('By supplier', tbl(['Supplier', '>Bills', '>Total', '>Paid', '>Due'], d.by_supplier.map(r => tr([r.name, N(r.bills), R(r.total), R(r.paid), R(r.due)]))));
@@ -124,6 +166,7 @@ const RENDER = {
   expenses(d) {
     ex = { name: 'expenses', head: ['Category', 'Entries', 'Total'], rows: d.by_category.map(r => [r.category, r.count, r.total]) };
     return `<div class="cards s5" style="margin-top:14px">${[card('Total expenses', money(d.total)), card('Entries', num(d.count, 0)), card('Cancelled (left out)', money(d.cancelled.total), `${d.cancelled.count} entr${d.cancelled.count === 1 ? 'y' : 'ies'}`)].join('')}</div>`
+      + chart('expenses', d)
       + section('By category', tbl(['Category', '>Entries', '>Total', '>Share'], d.by_category.map(r => tr([r.category, N(r.count), R(r.total), H(esc(Number(d.total) > 0 ? Math.round(Number(r.total) / Number(d.total) * 100) + '%' : ''))])), foot(['Total', N(d.count), R(d.total), ''])))
       + section('By period', tbl(['Period', '>Entries', '>Total'], d.rows.map(r => tr([label(r.period, group), N(r.count), R(r.total)])), foot(['Total', N(d.count), R(d.total)])));
   },
